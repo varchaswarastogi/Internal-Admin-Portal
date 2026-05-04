@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  SUPPORT
+  ANALYST
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+  BANNED
+}
+
+model Admin {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         AdminRole
+  createdAt    DateTime   @default(now())
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id          String      @id @default(cuid())
+  name        String
+  email       String      @unique
+  plan        String      @default("Free")
+  status      UserStatus  @default(ACTIVE)
+  country     String
+  lastSeenAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  events      Event[]
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventName  String
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([eventName, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminId     String?
+  admin       Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([adminId])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String
+  enabled     Boolean  @default(false)
+  rollout     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
