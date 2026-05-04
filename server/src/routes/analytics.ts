@@ -1,4 +1,4 @@
-import { AdminRole } from "@prisma/client";
+import { AdminRole, Prisma } from "@prisma/client";
 import { eachDayOfInterval, format, startOfDay, subDays } from "date-fns";
 import { Router } from "express";
 import { prisma } from "../db.js";
@@ -6,6 +6,15 @@ import { requireAuth, requireRoles } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const router = Router();
+
+function getNumericProperty(properties: Prisma.JsonValue, key: string) {
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+    return 0;
+  }
+
+  const value = properties[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
 router.get(
   "/overview",
@@ -39,12 +48,7 @@ router.get(
       })
     ]);
 
-    const revenue = purchases.reduce((sum, event) => {
-      const value = event.properties && typeof event.properties === "object" && "amount" in event.properties
-        ? Number(event.properties.amount)
-        : 0;
-      return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
+    const revenue = purchases.reduce((sum, event) => sum + getNumericProperty(event.properties, "amount"), 0);
 
     const retentionRate = totalUsers > 0 ? Math.round((mau.length / totalUsers) * 100) : 0;
     const eventGrowth = eventsPrev30 > 0 ? Math.round(((events30 - eventsPrev30) / eventsPrev30) * 100) : 100;
