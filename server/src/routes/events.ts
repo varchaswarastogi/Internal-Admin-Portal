@@ -1,4 +1,4 @@
-import { AdminRole } from "@prisma/client";
+import { AdminRole, Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -21,7 +21,7 @@ router.post(
       data: {
         userId: payload.userId,
         eventName: payload.eventName,
-        properties: payload.properties
+        properties: payload.properties as Prisma.InputJsonValue
       }
     });
 
