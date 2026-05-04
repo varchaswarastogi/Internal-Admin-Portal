@@ -1,6 +1,6 @@
 import { PrismaClient, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { subDays, subHours } from "date-fns";
+import { addHours, subDays, subHours } from "date-fns";
 
 const prisma = new PrismaClient();
 
@@ -28,12 +28,45 @@ const names = [
   "Harper Lee",
   "Arjun Nair",
   "Isabella Clark",
-  "Dev Malhotra"
+  "Dev Malhotra",
+  "Grace Morgan",
+  "Aditya Kulkarni",
+  "Sofia Rossi",
+  "Nikhil Bansal",
+  "Ella Anderson",
+  "Tanvi Joshi",
+  "Henry Walker",
+  "Meera Das",
+  "Leo Thompson",
+  "Sara Ahmed",
+  "Kian Murphy",
+  "Ira Verma",
+  "Owen Scott",
+  "Saanvi Reddy",
+  "Chloe Martin",
+  "Yusuf Ali",
+  "Riya Chatterjee",
+  "Jack Turner",
+  "Diya Shah",
+  "Mateo Hernandez",
+  "Aisha Thomas",
+  "Finn Cooper",
+  "Neha Menon",
+  "Caleb Young"
 ];
 
 const countries = ["India", "United States", "Canada", "United Kingdom", "Germany", "Singapore"];
 const plans = ["Free", "Starter", "Pro", "Enterprise"];
-const eventNames = ["user_signed_up", "workspace_created", "button_clicked", "report_viewed", "purchase_made", "invite_sent"];
+const recurringEvents = ["button_clicked", "report_viewed", "invite_sent", "dashboard_opened", "export_created"];
+
+function pick<T>(items: T[], index: number) {
+  return items[index % items.length];
+}
+
+function pseudoRandom(seed: number) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
 
 async function main() {
   await prisma.auditLog.deleteMany();
@@ -53,39 +86,96 @@ async function main() {
 
   const users = [];
   for (let index = 0; index < names.length; index += 1) {
-    const createdAt = subDays(new Date(), Math.floor(Math.random() * 80));
-    const status = index % 13 === 0 ? UserStatus.BANNED : index % 11 === 0 ? UserStatus.DEACTIVATED : UserStatus.ACTIVE;
+    const createdAt = subDays(new Date(), 7 + ((index * 5) % 130));
+    const status = index % 17 === 0 ? UserStatus.BANNED : index % 13 === 0 ? UserStatus.DEACTIVATED : UserStatus.ACTIVE;
     users.push(
       await prisma.user.create({
         data: {
           name: names[index],
           email: names[index].toLowerCase().replaceAll(" ", ".") + "@example.com",
-          plan: plans[index % plans.length],
-          country: countries[index % countries.length],
+          plan: pick(plans, index + Math.floor(index / 3)),
+          country: pick(countries, index),
           status,
           createdAt,
-          lastSeenAt: subHours(new Date(), Math.floor(Math.random() * 240))
+          lastSeenAt: status === UserStatus.ACTIVE ? subHours(new Date(), 3 + ((index * 7) % 260)) : subDays(new Date(), 35 + (index % 45))
         }
       })
     );
   }
 
   const events = [];
-  for (let day = 0; day < 60; day += 1) {
-    const activeCount = 5 + Math.floor(Math.random() * users.length * 0.6);
-    const shuffled = [...users].sort(() => Math.random() - 0.5).slice(0, activeCount);
-    for (const user of shuffled) {
-      const eventCount = 1 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < eventCount; i += 1) {
-        const eventName = eventNames[Math.floor(Math.random() * eventNames.length)];
+  const purchaseAmounts = [19, 29, 49, 79, 99, 149, 249];
+
+  for (const [index, user] of users.entries()) {
+    const userAgeDays = Math.max(1, Math.floor((Date.now() - user.createdAt.getTime()) / 86_400_000));
+    const signedUpAt = addHours(user.createdAt, 1 + (index % 10));
+    events.push({
+      userId: user.id,
+      eventName: "user_signed_up",
+      createdAt: signedUpAt,
+      properties: { source: pick(["organic", "referral", "paid_search", "linkedin"], index) }
+    });
+
+    if (index % 10 !== 0) {
+      events.push({
+        userId: user.id,
+        eventName: "workspace_created",
+        createdAt: addHours(signedUpAt, 2 + (index % 18)),
+        properties: { template: pick(["analytics", "support", "billing", "growth"], index) }
+      });
+    }
+
+    if (index % 3 !== 0) {
+      events.push({
+        userId: user.id,
+        eventName: "button_clicked",
+        createdAt: addHours(signedUpAt, 8 + (index % 40)),
+        properties: { button: pick(["invite_teammate", "create_report", "upgrade_plan", "export_csv"], index) }
+      });
+    }
+
+    if (index % 5 === 1 || index % 7 === 2) {
+      events.push({
+        userId: user.id,
+        eventName: "purchase_made",
+        createdAt: addHours(signedUpAt, 24 + (index % 90)),
+        properties: { amount: pick(purchaseAmounts, index), plan: user.plan }
+      });
+    }
+
+    const activeWindow = user.status === UserStatus.ACTIVE ? Math.min(45, userAgeDays) : Math.min(20, userAgeDays);
+    for (let day = activeWindow; day >= 0; day -= 1) {
+      const engagement = pseudoRandom(index * 19 + day * 11);
+      const isRecentlyActive = day <= 30 && user.status === UserStatus.ACTIVE && engagement > 0.34;
+      const isOlderNoise = day > 30 && engagement > 0.78;
+      if (!isRecentlyActive && !isOlderNoise) continue;
+
+      const eventCount = engagement > 0.82 ? 3 : engagement > 0.58 ? 2 : 1;
+      for (let count = 0; count < eventCount; count += 1) {
+        const eventName = pick(recurringEvents, index + day + count);
         events.push({
           userId: user.id,
           eventName,
-          createdAt: subHours(subDays(new Date(), day), Math.floor(Math.random() * 24)),
-          properties:
-            eventName === "purchase_made"
-              ? { amount: [19, 49, 99, 249][Math.floor(Math.random() * 4)], plan: user.plan }
-              : { source: ["web", "mobile", "email"][Math.floor(Math.random() * 3)] }
+          createdAt: subHours(subDays(new Date(), day), (index + count * 5) % 24),
+          properties: {
+            surface: pick(["dashboard", "users", "billing", "reports"], index + count),
+            source: pick(["web", "mobile", "email"], day + count)
+          }
+        });
+      }
+    }
+  }
+
+  for (let day = 0; day < 60; day += 1) {
+    for (const [index, user] of users.entries()) {
+      if (user.status !== UserStatus.ACTIVE || pseudoRandom(day * 41 + index * 13) < 0.9) continue;
+      const eventCount = pseudoRandom(day + index) > 0.72 ? 2 : 1;
+      for (let i = 0; i < eventCount; i += 1) {
+        events.push({
+          userId: user.id,
+          eventName: pick(["report_viewed", "button_clicked", "invite_sent"], day + index + i),
+          createdAt: subHours(subDays(new Date(), day), (day + index + i) % 24),
+          properties: { source: pick(["web", "mobile", "email"], index + i), campaign: pick(["spring_launch", "activation", "retention"], day) }
         });
       }
     }

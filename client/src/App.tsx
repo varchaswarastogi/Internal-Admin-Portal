@@ -188,8 +188,8 @@ function Dashboard() {
     ["DAU", data.metrics.dau],
     ["MAU", data.metrics.mau],
     ["Retention", `${data.metrics.retentionRate}%`],
-    ["30d Events", data.metrics.events30],
-    ["Revenue", `$${data.metrics.revenue}`],
+    ["30d Events", compactNumber(data.metrics.events30)],
+    ["Revenue", currency(data.metrics.revenue)],
     ["Active Users", data.metrics.activeUsers]
   ];
 
@@ -229,7 +229,7 @@ function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data.topEvents} layout="vertical">
               <XAxis type="number" hide />
-              <YAxis dataKey="eventName" type="category" width={120} tickLine={false} axisLine={false} />
+              <YAxis dataKey="eventName" type="category" width={150} tickLine={false} axisLine={false} tickFormatter={labelize} />
               <Tooltip />
               <Bar dataKey="count" fill="#0f766e" radius={[0, 6, 6, 0]} />
             </BarChart>
@@ -242,7 +242,7 @@ function Dashboard() {
           {data.funnel.map((step, index) => (
             <div className="funnel-step" key={step.step}>
               <span>{index + 1}</span>
-              <strong>{step.step.replaceAll("_", " ")}</strong>
+              <strong>{labelize(step.step)}</strong>
               <small>{step.users} users · {step.conversion}%</small>
               <div><i style={{ width: `${Math.max(step.conversion, 8)}%` }} /></div>
             </div>
@@ -396,7 +396,7 @@ function AuditLogs() {
           {logs.map((log) => (
             <article key={log.id}>
               <span>{formatDate(log.createdAt)}</span>
-              <strong>{log.action.replaceAll("_", " ")}</strong>
+              <strong>{labelize(log.action)}</strong>
               <small>{log.admin?.name ?? "System"} · {log.targetType}</small>
               <code>{JSON.stringify(log.metadata)}</code>
             </article>
@@ -468,7 +468,7 @@ function EventList({ events }: { events: EventItem[] }) {
     <div className="event-list">
       {events.map((event) => (
         <article key={event.id}>
-          <span>{event.eventName}</span>
+          <span>{labelize(event.eventName)}</span>
           <strong>{event.user?.email ?? event.userId ?? "anonymous"}</strong>
           <small>{formatDate(event.createdAt)}</small>
           <code>{JSON.stringify(event.properties)}</code>
@@ -485,4 +485,26 @@ function StatusPill({ status }: { status: User["status"] }) {
 function formatDate(value?: string) {
   if (!value) return "Never";
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function labelize(value: string) {
+  return value
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function currency(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
+function compactNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: value >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: 1
+  }).format(value);
 }
